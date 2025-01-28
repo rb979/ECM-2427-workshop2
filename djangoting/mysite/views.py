@@ -15,19 +15,36 @@ def add_item(request):
         try:
             data = json.loads(request.body)
             item_type = data.get("itemType")
-            expiration_date = parse_date(data.get("expirationDate"))
+            expiration_date = data.get("expirationDate")
             amount = data.get("amount")
 
             if not all([item_type, expiration_date, amount]):
-                return JsonResponse({"error": "Missing parameters"}, status=400)
+                return JsonResponse({"error": "Missing parameters: 'itemType', 'expirationDate', and 'amount' are required."}, status=400)
 
-            amount_type = get_object_or_404(AmountType, name=item_type)
-            Item.objects.create(name=item_type, amount=amount, amount_type=amount_type)
+            try:
+                expiration_date = parse_date(expiration_date)
+                if not expiration_date:
+                    return JsonResponse({"error": "Invalid 'expirationDate' format."}, status=400)
+            except ValueError:
+                return JsonResponse({"error": "Invalid 'expirationDate' format."}, status=400)
+
+            amount_type = AmountType.objects.filter(name=item_type).first()
+            if not amount_type:
+                return JsonResponse({"error": f"Amount type '{item_type}' not found in the database."}, status=404)
+
+            Item.objects.create(
+                name=item_type,
+                amount=amount,
+                amount_type=amount_type,
+                expiration_date=expiration_date 
+            )
             return JsonResponse({"message": "Item added successfully"}, status=200)
 
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-    return JsonResponse({"error": "Invalid request method"}, status=405)
+            return JsonResponse({"error": f"An unexpected error occurred: {str(e)}"}, status=500)
+
+    return JsonResponse({"error": "Invalid request method. Only PUT is allowed."}, status=405)
+
 
 
 @csrf_exempt
@@ -168,13 +185,25 @@ def purchase_item(request):
             data = json.loads(request.body)
             item_type = data.get("item type")
             amount = data.get("amount")
-            expiration_date = parse_date(data.get("expiration date"))
+            expiration_date = data.get("expiration date")
 
-            if not all([item_type, amount, expiration_date]):
-                return JsonResponse({"error": "Missing parameters"}, status=400)
+            if not item_type or not amount or not expiration_date:
+                return JsonResponse({"error": "Missing parameters: 'item type', 'amount', and 'expiration date' are required."}, status=400)
 
-            shopping_list = get_object_or_404(ShoppingList, name="Default Shopping List")
-            item = get_object_or_404(Item, name=item_type)
+            try:
+                expiration_date = parse_date(expiration_date)
+                if not expiration_date:
+                    return JsonResponse({"error": "Invalid date format for 'expiration date'."}, status=400)
+            except ValueError:
+                return JsonResponse({"error": "Invalid date format for 'expiration date'."}, status=400)
+
+            shopping_list = ShoppingList.objects.filter(name="Default Shopping List").first()
+            if not shopping_list:
+                return JsonResponse({"error": "Shopping list not found."}, status=404)
+
+            item = shopping_list.items.filter(name=item_type).first()
+            if not item:
+                return JsonResponse({"error": f"Item '{item_type}' not found in the shopping list."}, status=404)
 
             if item.amount > amount:
                 item.amount -= amount
@@ -183,9 +212,17 @@ def purchase_item(request):
                 shopping_list.items.remove(item)
                 item.delete()
 
-            new_item = Item.objects.create(name=item_type, amount=amount, amount_type=item.amount_type)
-            return JsonResponse({"message": "Item purchased and added to the fridge"}, status=200)
+            new_item = Item.objects.create(
+                name=item_type,
+                amount=amount,
+                amount_type=item.amount_type,
+                expiration_date=expiration_date  # Ensure expiration_date is handled correctly
+            )
+            return JsonResponse({"message": "Item purchased and added to the fridge."}, status=200)
 
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-    return JsonResponse({"error": "Invalid request method"}, status=405)
+            # Return a detailed error message for debugging
+            return JsonResponse({"error": f"An unexpected error occurred: {str(e)}"}, status=500)
+
+    # Handle invalid request methods
+    return JsonResponse({"error": "Invalid request method. Only PATCH is allowed."}, status=405)

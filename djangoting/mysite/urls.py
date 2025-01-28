@@ -18,7 +18,9 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('create-list/', views.create_shopping_list, name='create_shopping_list'),
-    path('view-list/<int:list_id>/', views.view_shopping_list, name='view_shopping_list'),
+    path('create_shopping_list/', views.create_shopping_list, name='create_shopping_list'),
+    path('add_item_to_list/<int:list_id>/', views.add_item_to_list, name='add_item_to_list'),
+    path('remove_item_from_list/<int:list_id>/<int:item_id>/', views.remove_item_from_list, name='remove_item_from_list'),
+    path('list_items/<int:list_id>/', views.list_items, name='list_items'),
 ]
 
